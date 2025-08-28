@@ -10,15 +10,12 @@ function M.setup(opts)
 end
 
 function M.generate_commit()
-  vim.notify('Starting generate_commit...', vim.log.levels.DEBUG)
-  
   if not config.get('openai_api_key') then
     vim.notify('OPENAI_API_KEY not configured. Set it in your environment or plugin config.', vim.log.levels.ERROR)
     return
   end
 
   local staged_diff = git.get_staged_diff()
-  vim.notify('Got staged diff: ' .. (staged_diff and string.len(staged_diff) or 'nil'), vim.log.levels.DEBUG)
   
   if not staged_diff or staged_diff == '' then
     vim.notify('No staged changes found. Stage your changes with git add first.', vim.log.levels.WARN)
@@ -28,8 +25,6 @@ function M.generate_commit()
   vim.notify('Generating commit messages...', vim.log.levels.INFO)
   
   openai.generate_commit_messages(staged_diff, function(messages, error)
-    vim.notify('Callback called with messages=' .. #(messages or {}) .. ', error=' .. (error or 'nil'), vim.log.levels.DEBUG)
-    
     if error then
       vim.notify('Failed to generate commit messages: ' .. error, vim.log.levels.ERROR)
       return

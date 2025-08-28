@@ -49,13 +49,11 @@ Return ONLY the commit messages, one per line:]],
   if file then
     file:write(body)
     file:close()
-    vim.notify('JSON written to: ' .. temp_file, vim.log.levels.DEBUG)
   else
     callback(nil, 'Failed to write temp file')
     return
   end
 
-  vim.notify('Starting job...', vim.log.levels.DEBUG)
   local job_id = vim.fn.jobstart({'curl', '-s', '-X', 'POST', 
     'https://api.openai.com/v1/chat/completions',
     '-H', 'Content-Type: application/json',
@@ -71,30 +69,25 @@ Return ONLY the commit messages, one per line:]],
     end,
     on_stdout = function(_, response_data)
       local response = table.concat(response_data, '\n')
-      vim.notify('Raw response: ' .. string.sub(response, 1, 200), vim.log.levels.DEBUG)
       
       local ok, parsed = pcall(vim.json.decode, response)
       
       if not ok then
-        vim.notify('JSON parse failed for: ' .. response, vim.log.levels.ERROR)
-        callback(nil, 'Failed to parse response: ' .. response)
+        callback(nil, 'Failed to parse OpenAI response')
         return
       end
 
       if parsed.error then
-        vim.notify('OpenAI returned error: ' .. vim.inspect(parsed.error), vim.log.levels.ERROR)
         callback(nil, 'OpenAI error: ' .. parsed.error.message)
         return
       end
 
       if not parsed.choices or #parsed.choices == 0 then
-        vim.notify('No choices in response: ' .. vim.inspect(parsed), vim.log.levels.ERROR)
         callback(nil, 'No commit messages in response')
         return
       end
 
       local content = parsed.choices[1].message.content
-      vim.notify('AI content: ' .. content, vim.log.levels.DEBUG)
       
       local messages = {}
       for line in content:gmatch('[^\r\n]+') do
@@ -104,7 +97,6 @@ Return ONLY the commit messages, one per line:]],
         end
       end
 
-      vim.notify('Parsed ' .. #messages .. ' messages', vim.log.levels.DEBUG)
       callback(messages)
     end,
     on_stderr = function(_, error_data)
