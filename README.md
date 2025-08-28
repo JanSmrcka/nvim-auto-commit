@@ -1,6 +1,8 @@
 # nvim-auto-commit
 
-A Neovim plugin that generates AI-powered commit messages using OpenAI's API. Select from multiple generated suggestions in a clean modal interface.
+**Never write commit messages again!** This Neovim plugin analyzes your staged git changes and generates multiple AI-powered commit messages. Simply stage your changes, run `:AICommit`, and select from 4 professionally crafted commit messages in a beautiful modal interface.
+
+Perfect for developers who want consistent, high-quality commit messages without the mental overhead of writing them manually.
 
 ## Features
 
@@ -43,6 +45,28 @@ use {
 }
 ```
 
+### Local Development
+
+For local testing:
+
+```lua
+-- lazy.nvim
+{
+  dir = '/path/to/your/nvim-auto-commit',
+  config = function()
+    require('nvim-auto-commit').setup()
+  end
+}
+
+-- packer.nvim  
+use {
+  '/path/to/your/nvim-auto-commit',
+  config = function()
+    require('nvim-auto-commit').setup()
+  end
+}
+```
+
 ## Setup
 
 1. Set your OpenAI API key as an environment variable:
@@ -62,18 +86,71 @@ use {
    })
    ```
 
-## Usage
+## Quick Start
 
-1. Stage your changes with `git add`
-2. Run `:AICommit` in Neovim
-3. Wait for AI to generate commit messages
-4. Select a message using number keys (1-4) or navigate with arrow keys and press Enter
-5. Press `q` or `Esc` to cancel
+1. **Stage your changes**: `git add .` or `git add <files>`
+2. **Generate commit messages**: Run `:AICommit` in Neovim
+3. **Select and commit**: Choose from 4 AI-generated options:
+   - Press `1`, `2`, `3`, or `4` to select instantly
+   - Use arrow keys + `Enter` to navigate and select  
+   - Press `q` or `Esc` to cancel
+
+That's it! Your commit is created automatically with the selected message.
+
+## Example Workflow
+
+```
+$ git add src/auth.lua
+$ nvim
+:AICommit
+
+┌─────── Select Commit Message ───────┐
+│ 1. feat(auth): add login validation │
+│ 2. fix(auth): resolve session bug   │ 
+│ 3. refactor: improve auth logic     │
+│ 4. chore(auth): update dependencies │
+│                                     │
+│ Press number (1-4) to select, q to quit │
+└─────────────────────────────────────┘
+```
 
 ## Commands
 
 - `:AICommit` - Generate and select AI commit messages
-- `:AICommitConfig` - Open configuration (if implemented)
+
+## Troubleshooting
+
+**"OPENAI_API_KEY not configured"**
+- Set your API key: `export OPENAI_API_KEY="sk-..."`
+- Or configure in plugin setup: `openai_api_key = "sk-..."`
+
+**"No staged changes found"**  
+- Stage your changes first: `git add .` or `git add <files>`
+- Check status: `git status`
+
+**"Failed to generate commit messages"**
+- Check your internet connection
+- Verify your OpenAI API key is valid
+- Try a smaller diff (large diffs are automatically truncated)
+
+## Example Generated Messages
+
+The AI analyzes your actual code changes and generates contextual commit messages:
+
+**For adding a new feature:**
+- `feat(auth): add JWT token validation`
+- `feat(api): implement user registration endpoint`
+- `feat(ui): add loading spinner component`
+
+**For bug fixes:**
+- `fix(database): resolve connection timeout issue`
+- `fix(validation): handle empty email input`
+- `fix(memory): prevent leak in event listeners`
+
+**For refactoring:**
+- `refactor(utils): simplify date formatting logic`
+- `refactor(components): extract reusable button component`
+- `refactor(api): consolidate error handling`
 
 ## Configuration Options
 
