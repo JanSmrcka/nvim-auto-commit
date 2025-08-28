@@ -13,23 +13,20 @@ local function make_openai_request(diff, callback)
     return
   end
 
-  local prompt = string.format([[
-Generate %d different commit messages for the following git diff. 
-%s
-Return only the commit messages, one per line, without any additional text or formatting.
-The messages should be:
-- Clear and descriptive
-- Under 50 characters for the subject line
-- Follow best practices for git commit messages
-%s
+  local prompt = string.format([[Analyze this git diff and generate %d concise commit messages in conventional commit format.
+
+RULES:
+- Format: type(scope): description
+- Types: feat, fix, docs, style, refactor, test, chore
+- Keep under 50 characters
+- Focus on WHAT changed, not HOW
+- Be specific and actionable
 
 Git diff:
-```
 %s
-```]], 
+
+Return ONLY the commit messages, one per line:]], 
     max_messages,
-    conventional and "Use conventional commit format (type(scope): description)." or "",
-    conventional and "Examples: feat: add user authentication, fix: resolve memory leak, docs: update API documentation" or "",
     diff
   )
 
@@ -45,41 +42,61 @@ Git diff:
     max_tokens = 200
   }
 
-  local json_data = vim.fn.json_encode(data)
-  
-  local cmd = string.format(
-    'curl -s -X POST "https://api.openai.com/v1/chat/completions" ' ..
-    '-H "Content-Type: application/json" ' ..
-    '-H "Authorization: Bearer %s" ' ..
-    '-d %s',
-    api_key,
-    vim.fn.shellescape(json_data)
-  )
+  -- Write JSON to temp file
+  local body = vim.json.encode(data)
+  local temp_file = '/tmp/debug_openai.json'
+  local file = io.open(temp_file, 'w')
+  if file then
+    file:write(body)
+    file:close()
+    vim.notify('JSON written to: ' .. temp_file, vim.log.levels.DEBUG)
+  else
+    callback(nil, 'Failed to write temp file')
+    return
+  end
 
-  vim.fn.jobstart(cmd, {
+  vim.notify('Starting job...', vim.log.levels.DEBUG)
+  local job_id = vim.fn.jobstart({'curl', '-s', '-X', 'POST', 
+    'https://api.openai.com/v1/chat/completions',
+    '-H', 'Content-Type: application/json',
+    '-H', 'Authorization: Bearer ' .. api_key,
+    '-d', '@' .. temp_file}, {
     stdout_buffered = true,
-    on_stdout = function(_, data)
-      local response = table.concat(data, '\n')
-      local ok, parsed = pcall(vim.fn.json_decode, response)
+    stderr_buffered = true,
+    on_exit = function(_, code)
+      os.remove(temp_file)
+      if code ~= 0 then
+        callback(nil, 'Curl failed with code: ' .. code)
+      end
+    end,
+    on_stdout = function(_, response_data)
+      local response = table.concat(response_data, '\n')
+      vim.notify('Raw response: ' .. string.sub(response, 1, 200), vim.log.levels.DEBUG)
+      
+      local ok, parsed = pcall(vim.json.decode, response)
       
       if not ok then
-        callback(nil, 'Failed to parse OpenAI response')
+        vim.notify('JSON parse failed for: ' .. response, vim.log.levels.ERROR)
+        callback(nil, 'Failed to parse response: ' .. response)
         return
       end
 
       if parsed.error then
-        callback(nil, 'OpenAI API error: ' .. (parsed.error.message or 'Unknown error'))
+        vim.notify('OpenAI returned error: ' .. vim.inspect(parsed.error), vim.log.levels.ERROR)
+        callback(nil, 'OpenAI error: ' .. parsed.error.message)
         return
       end
 
       if not parsed.choices or #parsed.choices == 0 then
-        callback(nil, 'No commit messages generated')
+        vim.notify('No choices in response: ' .. vim.inspect(parsed), vim.log.levels.ERROR)
+        callback(nil, 'No commit messages in response')
         return
       end
 
       local content = parsed.choices[1].message.content
-      local messages = {}
+      vim.notify('AI content: ' .. content, vim.log.levels.DEBUG)
       
+      local messages = {}
       for line in content:gmatch('[^\r\n]+') do
         local trimmed = line:match('^%s*(.-)%s*$')
         if trimmed and trimmed ~= '' then
@@ -87,12 +104,13 @@ Git diff:
         end
       end
 
+      vim.notify('Parsed ' .. #messages .. ' messages', vim.log.levels.DEBUG)
       callback(messages)
     end,
-    on_stderr = function(_, data)
-      if data and #data > 0 then
-        local error_msg = table.concat(data, '\n')
-        callback(nil, 'Request failed: ' .. error_msg)
+    on_stderr = function(_, error_data)
+      local error_msg = table.concat(error_data, '\n')
+      if error_msg ~= '' then
+        callback(nil, 'Curl error: ' .. error_msg)
       end
     end
   })

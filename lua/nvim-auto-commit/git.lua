@@ -2,7 +2,7 @@ local M = {}
 local config = require('nvim-auto-commit.config')
 
 function M.get_staged_diff()
-  local handle = io.popen('git diff --cached 2>/dev/null')
+  local handle = io.popen('git diff --cached --no-color --ignore-cr-at-eol 2>/dev/null')
   if not handle then
     return nil
   end
@@ -10,7 +10,29 @@ function M.get_staged_diff()
   local result = handle:read('*all')
   handle:close()
   
-  return result
+  if not result then
+    return nil
+  end
+  
+  -- Filter out binary files and non-UTF8 content
+  local lines = {}
+  for line in result:gmatch('[^\r\n]*') do
+    -- Skip binary file indicators, lines with null bytes, and control characters
+    if not line:match('Binary files') and 
+       not line:find('\0') and 
+       not line:find('[\1-\8\11\12\14-\31\127]') then
+      table.insert(lines, line)
+    end
+  end
+  
+  local filtered = table.concat(lines, '\n')
+  
+  -- Limit diff size to prevent API issues  
+  if string.len(filtered) > 1500 then
+    filtered = string.sub(filtered, 1, 1500) .. '\n... (diff truncated)'
+  end
+  
+  return filtered
 end
 
 function M.has_staged_changes()
